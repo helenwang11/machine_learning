@@ -13,14 +13,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r,echo=FALSE,warning=FALSE,echo=FALSE}
-setwd("~/Documents/datascience/MachineLearning/")
+setwd("~/Documents/datascience/MachineLearning/machine_learning_final_project")
 library(parallel)
 library(doParallel)
 library(caret)
 ```
 
+##Load the data and preprocess
+
 First load the data and preprocess it by removing timestamp columns since those won't be used in training.
 ```{r load data and preprocess, cache = TRUE}
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile="pml-training.csv")
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile="pml-testing.csv")
 read.csv("pml-training.csv",na.strings=c("","NA"))->training
 # remove columns that don't have data
 !is.na(training[1,])->cols
@@ -33,6 +37,8 @@ read.csv("pml-testing.csv",na.strings=c("","NA"))->testing
 testing_data = testing[,cols]
 testing_data = testing_data[,-c(1,3,4,5,6,7)]
 ```
+
+##Exploratory analysis
 
 Next make some feature plots to take a look at the relationship between the variable classe and predictors. For simplicity purpose here we only look at user "carlitos". We can see that if we want to obtain the best separation of the classe variable we may want to use all the variables in the training.
 
@@ -67,11 +73,15 @@ featureplot<-featurePlot(x = carlitos[, dumbbell],
 featureplot
 ```
 
-Train a random forest classifier using all the variables except "classe" as predictors.
-```{r train the model, cache = TRUE}
+##Train the classifier
+Train a random forest classifier using all the variables except "classe" as predictors. We hope that this should give us the maximum amount of accuracy. Because of the large number of predictors, in order to speed up the algorithm, I choose to use parallel processing. I choose to use 10-fold cross validation in the training process to evaluate out-of-sample error.
+
+```{r train the model, cache = TRUE,warning=FALSE}
 set.seed(33833)
 cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
 registerDoParallel(cluster)
+
+# here we use 10-fold cross-validation to tune the model and to estimate out-of-sample error
 fitControl <- trainControl(method = "cv",
                            number = 10,
                            allowParallel = TRUE)
@@ -80,12 +90,11 @@ fit <- train(classe~.,method = "rf",data = training_data,trControl = fitControl)
 stopCluster(cluster)
 registerDoSEQ()
 confusionMatrix.train(fit)
-training_pred<-predict(fit)
-table(training_pred,training_data$classe)
 ```
 
-This gives us an accuracy close to 100% with the training data.
+This gives us an accuracy = 99.55% (averaged across cross-validation sets).
 
+## Prediction on the test data
 Now apply it to the testing data to obtain the predictions
 ```{r generate prediction, cache=TRUE}
 test_pred <- predict(fit,newdata=testing_data)
